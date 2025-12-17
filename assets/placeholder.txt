@@ -1,0 +1,10 @@
+This directory should contain:
+- fonts/ - Font files (Poppins-Bold.ttf, Poppins-Regular.ttf, Poppins-SemiBold.ttf) - Optional
+- icon.png - App icon (1024x1024)
+- splash.png - Splash screen image (1242x2436)
+- adaptive-icon.png - Android adaptive icon (1024x1024)
+- favicon.png - Web favicon (48x48)
+
+You can use placeholder images or create your own. The app will work without custom fonts (uses system fonts).
+
+
