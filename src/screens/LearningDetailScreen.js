@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import * as Speech from 'expo-speech';
+import { Audio } from 'expo-av';
 import { colors } from '../theme/colors';
 import { learningService } from '../services/learningService';
 
@@ -11,6 +12,7 @@ export default function LearningDetailScreen({ route, navigation }) {
   const [category, setCategory] = useState(null);
   const [content, setContent] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
+  const scrollViewRef = useRef(null);
 
   useEffect(() => {
     const categories = learningService.getLearningCategories();
@@ -32,28 +34,158 @@ export default function LearningDetailScreen({ route, navigation }) {
     );
   }
 
-  const speakText = (text) => {
+  const speakText = (text, options = {}) => {
     try {
       Speech.speak(text, {
-        language: categoryId === 'urdu' ? 'ur' : 'en',
+        language: options.language || (categoryId === 'urdu' ? 'ur' : 'en'),
         pitch: 1.0,
         rate: 0.8,
+        ...options,
       });
     } catch (error) {
       console.error('Error speaking text:', error);
     }
   };
 
+  const playAnimalSound = async (item) => {
+    try {
+      // Real animal sound URLs - using free sound sources
+      // Note: Replace these URLs with your own hosted sound files or use a reliable CDN
+      // For production, host these files locally or use a service like AWS S3, Cloudinary, etc.
+      const animalSoundUrls = {
+        'dog': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Replace with actual dog sound
+        'cat': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3', // Replace with actual cat sound
+        'cow': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3', // Replace with actual cow sound
+        'pig': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3', // Replace with actual pig sound
+        'sheep': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3', // Replace with actual sheep sound
+        'horse': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3', // Replace with actual horse sound
+        'duck': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3', // Replace with actual duck sound
+        'chicken': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3', // Replace with actual chicken sound
+        'rooster': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3', // Replace with actual rooster sound
+        'owl': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3', // Replace with actual owl sound
+        'frog': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3', // Replace with actual frog sound
+        'bird': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3', // Replace with actual bird sound
+        'lion': 'https://soundcamp.org/sound-effects/roaring-lion-mp3', // Replace with actual lion sound
+        'tiger': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3', // Replace with actual tiger sound
+        'elephant': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3', // Replace with actual elephant sound
+      };
+
+       const soundUrl = animalSoundUrls[item.id];
+      
+      if (soundUrl) {
+        try {
+          // Set audio mode for playback
+          await Audio.setAudioModeAsync({
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+          });
+
+          // Create and play sound
+          const { sound } = await Audio.Sound.createAsync(
+            { uri: soundUrl },
+            { shouldPlay: true, volume: 1.0 }
+          );
+
+          // Clean up when sound finishes
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (status.didJustFinish) {
+              sound.unloadAsync();
+            }
+          });
+        } catch (audioError) {
+          console.log('Audio file not available, using enhanced text-to-speech fallback');
+          // Fallback to enhanced text-to-speech with effects
+          playEnhancedAnimalSound(item);
+        }
+      } else {
+        // No URL available, use enhanced text-to-speech
+        playEnhancedAnimalSound(item);
+      }
+    } catch (error) {
+      console.error('Error playing animal sound:', error);
+      // Final fallback
+      playEnhancedAnimalSound(item);
+    }
+  };
+
+  const playEnhancedAnimalSound = (item) => {
+    // Enhanced text-to-speech with realistic animal sound effects
+    const soundEffects = {
+      'lion': { pitch: 0.3, rate: 0.5 },
+      'tiger': { pitch: 0.4, rate: 0.5 },
+      'elephant': { pitch: 0.2, rate: 0.4 },
+      'dog': { pitch: 0.7, rate: 0.8 },
+      'cat': { pitch: 1.2, rate: 1.0 },
+      'cow': { pitch: 0.5, rate: 0.6 },
+      'pig': { pitch: 0.8, rate: 0.9 },
+      'sheep': { pitch: 1.0, rate: 0.7 },
+      'horse': { pitch: 0.6, rate: 0.7 },
+      'duck': { pitch: 1.3, rate: 1.1 },
+      'chicken': { pitch: 1.2, rate: 1.0 },
+      'rooster': { pitch: 0.9, rate: 0.8 },
+      'owl': { pitch: 0.6, rate: 0.5 },
+      'frog': { pitch: 0.7, rate: 0.6 },
+      'bird': { pitch: 1.5, rate: 1.2 },
+      'monkey': { pitch: 1.0, rate: 1.1 },
+      'bear': { pitch: 0.3, rate: 0.5 },
+      'rabbit': { pitch: 1.1, rate: 1.0 },
+      'mouse': { pitch: 1.4, rate: 1.1 },
+      'snake': { pitch: 0.5, rate: 0.4 },
+      'whale': { pitch: 0.2, rate: 0.3 },
+      'dolphin': { pitch: 1.3, rate: 1.0 },
+    };
+    const effect = soundEffects[item.id] || { pitch: 0.8, rate: 0.7 };
+    speakText(item.sound, { pitch: effect.pitch, rate: effect.rate });
+  };
+
   const handleItemPress = (item) => {
     setSelectedItem(item);
     
-    // Speak the letter/number when clicked
+    // Scroll to top to show the selected item
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: 0, animated: true });
+    }
+    
+    // Speak the letter/number AND the word when clicked
     if (categoryId === 'abc') {
+      // Speak letter first, then word
       speakText(item.letter);
+      setTimeout(() => {
+        speakText(item.word);
+      }, 500);
     } else if (categoryId === '123') {
-      speakText(item.number);
+      // Speak number with count (e.g., "2 apples")
+      const count = item.count || parseInt(item.number);
+      const emoji = item.image && item.image.length > 0 ? item.image[0] : '🍎';
+      const itemName = count === 1 ? 'apple' : 'apples';
+      speakText(`${item.number} ${itemName}`);
     } else if (categoryId === 'urdu') {
-      speakText(item.name); // Speak "Alif", "Bay", etc.
+      // Speak name first (Alif, Bay), then word
+      speakText(item.name);
+      setTimeout(() => {
+        speakText(item.word, { language: 'ur' });
+      }, 500);
+    } else if (categoryId === 'shapes') {
+      // Speak shape name
+      speakText(item.name);
+    } else if (categoryId === 'colors') {
+      // Speak color name
+      speakText(item.name);
+    } else if (categoryId === 'animals') {
+      // Speak animal name, then play animal sound
+      speakText(item.name);
+      setTimeout(() => {
+        playAnimalSound(item);
+      }, 600);
+    } else if (categoryId === 'fruits') {
+      // Speak fruit/vegetable name
+      speakText(item.name);
+    } else if (categoryId === 'phonics') {
+      // Speak sound first, then word
+      speakText(item.sound);
+      setTimeout(() => {
+        speakText(item.word);
+      }, 500);
     }
   };
 
@@ -62,7 +194,12 @@ export default function LearningDetailScreen({ route, navigation }) {
       return (
         <TouchableOpacity 
           style={styles.abcCard}
-          onPress={() => speakText(item.letter)}
+          onPress={() => {
+            speakText(item.letter);
+            setTimeout(() => {
+              speakText(item.word);
+            }, 500);
+          }}
           activeOpacity={0.8}
         >
           <View style={styles.cardContent}>
@@ -73,16 +210,32 @@ export default function LearningDetailScreen({ route, navigation }) {
         </TouchableOpacity>
       );
     } else if (categoryId === '123') {
+      // Generate correct number of emojis based on count
+      const count = item.count || parseInt(item.number) || 1;
+      // Extract first emoji from image string (handle cases where image has multiple emojis)
+      let baseEmoji = '🍎';
+      if (item.image && item.image.length > 0) {
+        // Use the first emoji from the string (works for both single and multiple emojis)
+        // Match emoji pattern (covers most emojis)
+        const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}]/u;
+        const match = item.image.match(emojiRegex);
+        baseEmoji = match ? match[0] : '🍎';
+      }
+      const emojis = baseEmoji.repeat(count);
+      
       return (
         <TouchableOpacity 
           style={styles.numberCard}
-          onPress={() => speakText(item.number)}
+          onPress={() => {
+            const itemName = count === 1 ? 'apple' : 'apples';
+            speakText(`${item.number} ${itemName}`);
+          }}
           activeOpacity={0.8}
         >
           <View style={styles.cardContent}>
             <Text style={styles.number}>{item.number || '1'}</Text>
             <Text style={styles.numberWord}>{item.word || 'One'}</Text>
-            <Text style={styles.numberImage}>{item.image || '🍎'}</Text>
+            <Text style={styles.numberImage}>{emojis}</Text>
           </View>
         </TouchableOpacity>
       );
@@ -90,7 +243,12 @@ export default function LearningDetailScreen({ route, navigation }) {
       return (
         <TouchableOpacity 
           style={styles.urduCard}
-          onPress={() => speakText(item.name)}
+          onPress={() => {
+            speakText(item.name);
+            setTimeout(() => {
+              speakText(item.word, { language: 'ur' });
+            }, 500);
+          }}
           activeOpacity={0.8}
         >
           <View style={styles.cardContent}>
@@ -103,45 +261,85 @@ export default function LearningDetailScreen({ route, navigation }) {
       );
     } else if (categoryId === 'shapes') {
       return (
-        <View style={styles.shapeCard}>
-          <Text style={styles.shapeIcon}>{item.shape}</Text>
-          <Text style={styles.shapeName}>{item.name}</Text>
-        </View>
+        <TouchableOpacity 
+          style={styles.shapeCard}
+          onPress={() => speakText(item.name)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.cardContent}>
+            <Text style={styles.shapeIcon}>{item.shape}</Text>
+            <Text style={styles.shapeName}>{item.name}</Text>
+          </View>
+        </TouchableOpacity>
       );
     } else if (categoryId === 'colors') {
       return (
-        <View style={[styles.colorCard, { backgroundColor: item.color + '30' }]}>
-          <View style={[styles.colorCircle, { backgroundColor: item.color }]} />
-          <Text style={styles.colorName}>{item.name}</Text>
-          <View style={styles.colorExamples}>
-            {item.examples.map((emoji, idx) => (
-              <Text key={idx} style={styles.colorExampleEmoji}>{emoji}</Text>
-            ))}
+        <TouchableOpacity 
+          style={styles.colorCard}
+          onPress={() => speakText(item.name)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.cardContent}>
+            <View style={[styles.colorCircle, { backgroundColor: item.color }]} />
+            <Text style={styles.colorName}>{item.name}</Text>
+            <View style={styles.colorExamples}>
+              {item.examples.map((emoji, idx) => (
+                <Text key={idx} style={styles.colorExampleEmoji}>{emoji}</Text>
+              ))}
+            </View>
           </View>
-        </View>
+        </TouchableOpacity>
       );
     } else if (categoryId === 'animals') {
       return (
-        <View style={styles.animalCard}>
-          <Text style={styles.animalImage}>{item.image}</Text>
-          <Text style={styles.animalName}>{item.name}</Text>
-          <Text style={styles.animalSound}>{item.sound}</Text>
-        </View>
+        <TouchableOpacity 
+          style={styles.animalCard}
+          onPress={() => {
+            speakText(item.name);
+            setTimeout(() => {
+              playAnimalSound(item);
+            }, 600);
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.cardContent}>
+            <Text style={styles.animalImage}>{item.image}</Text>
+            <Text style={styles.animalName}>{item.name}</Text>
+            <Text style={styles.animalSound}>{item.sound}</Text>
+          </View>
+        </TouchableOpacity>
       );
     } else if (categoryId === 'fruits') {
       return (
-        <View style={styles.fruitCard}>
-          <Text style={styles.fruitImage}>{item.image}</Text>
-          <Text style={styles.fruitName}>{item.name}</Text>
-        </View>
+        <TouchableOpacity 
+          style={styles.fruitCard}
+          onPress={() => speakText(item.name)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.cardContent}>
+            <Text style={styles.fruitImage}>{item.image}</Text>
+            <Text style={styles.fruitName}>{item.name}</Text>
+          </View>
+        </TouchableOpacity>
       );
     } else if (categoryId === 'phonics') {
       return (
-        <View style={styles.phonicsCard}>
-          <Text style={styles.phonicsSound}>{item.sound}</Text>
-          <Text style={styles.phonicsWord}>{item.word}</Text>
-          <Text style={styles.phonicsImage}>{item.image}</Text>
-        </View>
+        <TouchableOpacity 
+          style={styles.phonicsCard}
+          onPress={() => {
+            speakText(item.sound);
+            setTimeout(() => {
+              speakText(item.word);
+            }, 500);
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.cardContent}>
+            <Text style={styles.phonicsSound}>{item.sound}</Text>
+            <Text style={styles.phonicsWord}>{item.word}</Text>
+            <Text style={styles.phonicsImage}>{item.image}</Text>
+          </View>
+        </TouchableOpacity>
       );
     }
     return null;
@@ -157,7 +355,11 @@ export default function LearningDetailScreen({ route, navigation }) {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {selectedItem && (
           <View style={styles.selectedItemContainer}>
             {renderContentItem(selectedItem)}
@@ -365,13 +567,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 40,
     alignItems: 'center',
+    justifyContent: 'center',
     elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
   },
   colorCircle: {
     width: 150,
     height: 150,
     borderRadius: 75,
     marginBottom: 20,
+    borderWidth: 2,
+    borderColor: colors.lightGray,
   },
   colorName: {
     fontSize: 32,
@@ -476,9 +685,10 @@ const styles = StyleSheet.create({
     paddingBottom: 15,
   },
   colorDot: {
-    width: 40,
-    height: 40,
+    width: 30,
+    height: 30,
     borderRadius: 20,
+    marginBottom: 15
   },
 });
 
