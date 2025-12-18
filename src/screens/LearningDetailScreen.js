@@ -4,6 +4,7 @@ import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
 import { colors } from '../theme/colors';
 import { learningService } from '../services/learningService';
+import { animalSounds, animalSoundUrls } from '../services/animalSounds';
 
 const { width } = Dimensions.get('window');
 
@@ -49,38 +50,45 @@ export default function LearningDetailScreen({ route, navigation }) {
 
   const playAnimalSound = async (item) => {
     try {
-      // Real animal sound URLs - using free sound sources
-      // Note: Replace these URLs with your own hosted sound files or use a reliable CDN
-      // For production, host these files locally or use a service like AWS S3, Cloudinary, etc.
-      const animalSoundUrls = {
-        'dog': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Replace with actual dog sound
-        'cat': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3', // Replace with actual cat sound
-        'cow': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3', // Replace with actual cow sound
-        'pig': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3', // Replace with actual pig sound
-        'sheep': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3', // Replace with actual sheep sound
-        'horse': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3', // Replace with actual horse sound
-        'duck': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3', // Replace with actual duck sound
-        'chicken': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3', // Replace with actual chicken sound
-        'rooster': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3', // Replace with actual rooster sound
-        'owl': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3', // Replace with actual owl sound
-        'frog': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3', // Replace with actual frog sound
-        'bird': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3', // Replace with actual bird sound
-        'lion': 'https://soundcamp.org/sound-effects/roaring-lion-mp3', // Replace with actual lion sound
-        'tiger': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3', // Replace with actual tiger sound
-        'elephant': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3', // Replace with actual elephant sound
-      };
+      // Set audio mode for playback
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+      });
 
-       const soundUrl = animalSoundUrls[item.id];
+      // Try local sound file first (from animalSounds.js)
+      const localSound = animalSounds[item.id];
       
+      if (localSound) {
+        try {
+          console.log('🎵 Playing local sound for:', item.name, item.id);
+          // Create and play sound from local file
+          const { sound } = await Audio.Sound.createAsync(
+            localSound,
+            { shouldPlay: true, volume: 1.0 }
+          );
+
+          // Clean up when sound finishes
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (status.didJustFinish) {
+              sound.unloadAsync();
+            }
+          });
+          console.log('✅ Sound playing successfully');
+          return; // Successfully played local sound
+        } catch (audioError) {
+          console.log('❌ Local audio file error:', audioError);
+          // Fall through to try URL or fallback
+        }
+      } else {
+        console.log('⚠️ No local sound file found for:', item.id, '- checking URLs...');
+      }
+
+      // Try online URL if local file not available
+      const soundUrl = animalSoundUrls[item.id];
       if (soundUrl) {
         try {
-          // Set audio mode for playback
-          await Audio.setAudioModeAsync({
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
-          });
-
-          // Create and play sound
+          // Create and play sound from URL
           const { sound } = await Audio.Sound.createAsync(
             { uri: soundUrl },
             { shouldPlay: true, volume: 1.0 }
@@ -92,15 +100,16 @@ export default function LearningDetailScreen({ route, navigation }) {
               sound.unloadAsync();
             }
           });
-        } catch (audioError) {
-          console.log('Audio file not available, using enhanced text-to-speech fallback');
-          // Fallback to enhanced text-to-speech with effects
-          playEnhancedAnimalSound(item);
+          return; // Successfully played URL sound
+        } catch (urlError) {
+          console.log('URL audio file error:', urlError);
+          // Fall through to fallback
         }
-      } else {
-        // No URL available, use enhanced text-to-speech
-        playEnhancedAnimalSound(item);
       }
+
+      // Fallback to enhanced text-to-speech if no sound file available
+      console.log('No sound file found for:', item.id, '- using text-to-speech fallback');
+      playEnhancedAnimalSound(item);
     } catch (error) {
       console.error('Error playing animal sound:', error);
       // Final fallback
