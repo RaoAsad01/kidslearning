@@ -13,6 +13,8 @@ export default function SettingsScreen({ navigation }) {
     setTimeLimit,
     resetDailyUsage,
     lock,
+    isLocked,
+    unlock,
   } = useParentalControl();
 
   const [pinLocked, setPinLocked] = useState(false);
@@ -20,6 +22,25 @@ export default function SettingsScreen({ navigation }) {
   const [confirmPin, setConfirmPin] = useState('');
   const [timeLimitHours, setTimeLimitHours] = useState('');
   const [timeLimitMinutes, setTimeLimitMinutes] = useState('');
+  const [unlockPin, setUnlockPin] = useState('');
+
+  // Auto-unlock when 4 digits are entered
+  useEffect(() => {
+    if (isLocked && unlockPin.length === 4) {
+      const verifyAndUnlock = async () => {
+        const isValid = await verifyPin(unlockPin);
+        if (isValid) {
+          unlock();
+          setUnlockPin('');
+          Alert.alert('Success', 'App unlocked');
+        } else {
+          Alert.alert('Incorrect PIN', 'Please try again');
+          setUnlockPin('');
+        }
+      };
+      verifyAndUnlock();
+    }
+  }, [unlockPin, isLocked, verifyPin, unlock]);
 
   useEffect(() => {
     if (dailyTimeLimit) {
@@ -79,24 +100,17 @@ export default function SettingsScreen({ navigation }) {
     }
   };
 
-  const handleRemoveTimeLimit = async () => {
-    Alert.alert(
-      'Remove Time Limit',
-      'Are you sure you want to remove the daily time limit?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            await setTimeLimit(null);
-            setTimeLimitHours('');
-            setTimeLimitMinutes('');
-            Alert.alert('Success', 'Time limit removed');
-          },
-        },
-      ]
-    );
+  const handleRemoveTimeLimit = () => {
+    navigation.navigate('PinLock', {
+      onSuccess: async () => {
+        // PIN verified successfully, now remove the time limit
+        await setTimeLimit(null);
+        setTimeLimitHours('');
+        setTimeLimitMinutes('');
+        Alert.alert('Success', 'Time limit removed');
+      },
+      action: 'removeTimeLimit',
+    });
   };
 
   const formatTime = (minutes) => {
@@ -105,11 +119,70 @@ export default function SettingsScreen({ navigation }) {
     return `${hrs}h ${mins}m`;
   };
 
+  const handleUnlock = async () => {
+    if (unlockPin.length !== 4) {
+      return;
+    }
+
+    console.log('🔐 SettingsScreen: Verifying PIN for unlock...');
+    const isValid = await verifyPin(unlockPin);
+    console.log('🔐 SettingsScreen: PIN verification result:', isValid);
+    
+    if (isValid) {
+      console.log('🔐 SettingsScreen: PIN valid, unlocking app...');
+      unlock();
+      setUnlockPin('');
+      Alert.alert('Success', 'App unlocked');
+    } else {
+      console.log('🔐 SettingsScreen: PIN incorrect');
+      Alert.alert('Incorrect PIN', 'Please try again');
+      setUnlockPin('');
+    }
+  };
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>⚙️ Settings</Text>
       </View>
+
+      {/* App Locked Section */}
+      {isLocked && (
+        <View style={styles.section}>
+          <View style={[styles.settingCard, styles.lockedCard]}>
+            <Text style={styles.lockedTitle}>🔒 App is Locked</Text>
+            <Text style={styles.lockedDescription}>
+              Daily time limit reached. Enter PIN to unlock.
+            </Text>
+            <View style={styles.unlockContainer}>
+              <TextInput
+                style={styles.unlockPinInput}
+                placeholder="Enter PIN to unlock"
+                value={unlockPin}
+                onChangeText={setUnlockPin}
+                keyboardType="numeric"
+                maxLength={4}
+                secureTextEntry
+                autoFocus
+              />
+              <TouchableOpacity
+                style={styles.unlockButton}
+                onPress={handleUnlock}
+              >
+                <Text style={styles.unlockButtonText}>Unlock</Text>
+              </TouchableOpacity>
+            </View>
+            {unlockPin.length === 4 && (
+              <TouchableOpacity
+                style={styles.autoUnlockButton}
+                onPress={handleUnlock}
+              >
+                <Text style={styles.autoUnlockButtonText}>Unlock Now</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* Parental Controls Section */}
       <View style={styles.section}>
@@ -390,6 +463,60 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textLight,
     lineHeight: 20,
+  },
+  lockedCard: {
+    backgroundColor: colors.error + '15',
+    borderWidth: 2,
+    borderColor: colors.error,
+  },
+  lockedTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.error,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  lockedDescription: {
+    fontSize: 14,
+    color: colors.textDark,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  unlockContainer: {
+    gap: 10,
+  },
+  unlockPinInput: {
+    borderWidth: 2,
+    borderColor: colors.error,
+    borderRadius: 10,
+    padding: 15,
+    fontSize: 18,
+    backgroundColor: colors.white,
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  unlockButton: {
+    backgroundColor: colors.error,
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  unlockButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  autoUnlockButton: {
+    marginTop: 10,
+    padding: 12,
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+  },
+  autoUnlockButtonText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

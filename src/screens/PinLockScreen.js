@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 export default function PinLockScreen({ route, navigation }) {
   const { verifyPin, unlock, setParentalPin } = useParentalControl();
-  const { onSuccess } = route.params || {};
+  const { onSuccess, action } = route.params || {};
   const [pin, setPin] = useState('');
   const [isSettingNewPin, setIsSettingNewPin] = useState(false);
   const [newPin, setNewPin] = useState('');
@@ -27,17 +27,46 @@ export default function PinLockScreen({ route, navigation }) {
       return;
     }
 
+    console.log('🔐 PinLockScreen: Verifying PIN...');
     const isValid = await verifyPin(pin);
+    console.log('🔐 PinLockScreen: PIN verification result:', isValid);
+    
     if (isValid) {
       if (onSuccess) {
-        // Changing PIN flow
-        setIsSettingNewPin(true);
-        setPin('');
+        if (action === 'removeTimeLimit') {
+          // Remove time limit flow - call callback and go back
+          console.log('🔐 PinLockScreen: PIN valid, removing time limit');
+          setPin('');
+          try {
+            await onSuccess();
+            navigation.goBack();
+          } catch (error) {
+            console.error('🔐 PinLockScreen: Error in onSuccess callback:', error);
+            Alert.alert('Error', 'Failed to remove time limit. Please try again.');
+          }
+        } else {
+          // Changing PIN flow
+          console.log('🔐 PinLockScreen: PIN valid, proceeding to change PIN');
+          setIsSettingNewPin(true);
+          setPin('');
+        }
       } else {
-        unlock();
-        navigation.goBack();
+        // Unlock the app
+        console.log('🔐 PinLockScreen: PIN valid, unlocking app...');
+        try {
+          unlock();
+          console.log('🔐 PinLockScreen: unlock() called successfully');
+          // Clear PIN after successful unlock
+          setPin('');
+        } catch (error) {
+          console.error('🔐 PinLockScreen: Error unlocking:', error);
+          Alert.alert('Error', 'Failed to unlock app. Please try again.');
+        }
+        // Don't call navigation.goBack() for overlay - unlock() should be enough
+        // The overlay will disappear when isLocked becomes false
       }
     } else {
+      console.log('🔐 PinLockScreen: PIN incorrect');
       Alert.alert('Incorrect PIN', 'Please try again');
       setPin('');
     }
@@ -237,6 +266,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     width: '100%',
     justifyContent: 'center',
+    alignItems: 'center',
     gap: 15,
   },
   keypadButton: {

@@ -28,7 +28,7 @@ import { theme } from './src/theme/theme';
 import { colors } from './src/theme/colors';
 
 // Context
-import { ParentalControlProvider } from './src/context/ParentalControlContext';
+import { ParentalControlProvider, useParentalControl } from './src/context/ParentalControlContext';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -38,9 +38,17 @@ SplashScreen.preventAutoHideAsync();
 
 function MainTabs() {
   console.log('🟢 MainTabs component rendering...');
+  const { startSession, endSession } = useParentalControl();
   
   React.useEffect(() => {
     console.log('✅ MainTabs mounted');
+    // Start tracking app usage when tabs are active
+    startSession();
+    
+    return () => {
+      // End tracking when tabs unmount
+      endSession();
+    };
   }, []);
 
   return (
@@ -108,9 +116,9 @@ function MainTabs() {
   );
 }
 
-// TabIcon is imported from components
-
-export default function App() {
+// Wrapper component to handle lock state
+function AppContent() {
+  const { isLocked, isReady } = useParentalControl();
   const [appIsReady, setAppIsReady] = useState(false);
   const [appError, setAppError] = useState(null);
   const [debugInfo, setDebugInfo] = useState('Initializing...');
@@ -144,11 +152,15 @@ export default function App() {
     return () => clearTimeout(timeout);
   }, []);
 
-  console.log('🔵 App render - appIsReady:', appIsReady, 'appError:', appError);
+  console.log('🔵 App render - appIsReady:', appIsReady, 'isLocked:', isLocked, 'isReady:', isReady);
+  
+  // Log when lock state changes
+  useEffect(() => {
+    console.log('🔒 Lock state changed:', isLocked ? 'LOCKED' : 'UNLOCKED');
+  }, [isLocked]);
 
-  if (!appIsReady) {
+  if (!appIsReady || !isReady) {
     console.log('⏳ Waiting for app to be ready...');
-    // Show a loading indicator instead of null to help debug
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -177,54 +189,70 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <PaperProvider theme={theme}>
-          <ParentalControlProvider>
-            <NavigationContainer
-              onReady={() => {
-                console.log('✅✅✅ NavigationContainer ready!');
+          <NavigationContainer
+            onReady={() => {
+              console.log('✅✅✅ NavigationContainer ready!');
+            }}
+            onStateChange={(state) => {
+              console.log('✅ Navigation state changed:', state ? 'has state' : 'no state');
+            }}
+            onError={(error) => {
+              console.error('❌ NavigationContainer error:', error);
+            }}
+            fallback={
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text>Loading navigation...</Text>
+              </View>
+            }
+          >
+            <StatusBar style="auto" />
+            <Stack.Navigator
+              screenOptions={{
+                headerShown: false,
+                cardStyle: { backgroundColor: colors.white },
               }}
-              onStateChange={(state) => {
-                console.log('✅ Navigation state changed:', state ? 'has state' : 'no state');
-              }}
-              onError={(error) => {
-                console.error('❌ NavigationContainer error:', error);
-              }}
-              fallback={
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={colors.primary} />
-                  <Text>Loading navigation...</Text>
-                </View>
-              }
             >
-              <StatusBar style="auto" />
-              <Stack.Navigator
-                screenOptions={{
-                  headerShown: false,
-                  cardStyle: { backgroundColor: colors.white },
+              <Stack.Screen 
+                name="MainTabs" 
+                component={MainTabs}
+                listeners={{
+                  focus: () => console.log('✅ MainTabs screen focused'),
                 }}
-              >
-                <Stack.Screen 
-                  name="MainTabs" 
-                  component={MainTabs}
-                  listeners={{
-                    focus: () => console.log('✅ MainTabs screen focused'),
+              />
+              <Stack.Screen 
+                name="VideoPlayer" 
+                component={VideoPlayerScreen}
+                options={{ presentation: 'modal' }}
+              />
+              <Stack.Screen 
+                name="LearningDetail" 
+                component={LearningDetailScreen}
+              />
+              <Stack.Screen 
+                name="PinLock" 
+                component={PinLockScreen}
+                options={{ presentation: 'modal' }}
+              />
+            </Stack.Navigator>
+            {/* Show PinLockScreen as overlay when app is locked */}
+            {isLocked && (
+              <View style={styles.lockOverlay}>
+                <PinLockScreen 
+                  route={{ params: {} }} 
+                  navigation={{ 
+                    goBack: () => {},
+                    navigate: (screen, params) => {
+                      // Allow navigation to Settings even when locked
+                      if (screen === 'MainTabs') {
+                        // This will be handled by the navigator
+                      }
+                    }
                   }}
                 />
-                <Stack.Screen 
-                  name="VideoPlayer" 
-                  component={VideoPlayerScreen}
-                  options={{ presentation: 'modal' }}
-                />
-                <Stack.Screen 
-                  name="LearningDetail" 
-                  component={LearningDetailScreen}
-                />
-                <Stack.Screen 
-                  name="PinLock" 
-                  component={PinLockScreen}
-                />
-              </Stack.Navigator>
-            </NavigationContainer>
-          </ParentalControlProvider>
+              </View>
+            )}
+          </NavigationContainer>
         </PaperProvider>
       </SafeAreaProvider>
     );
@@ -242,6 +270,20 @@ export default function App() {
       </View>
     );
   }
+}
+
+// TabIcon is imported from components
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <PaperProvider theme={theme}>
+        <ParentalControlProvider>
+          <AppContent />
+        </ParentalControlProvider>
+      </PaperProvider>
+    </SafeAreaProvider>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -278,6 +320,14 @@ const styles = StyleSheet.create({
     color: colors.textLight,
     fontSize: 14,
     textAlign: 'center',
+  },
+  lockOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9999,
   },
 });
 

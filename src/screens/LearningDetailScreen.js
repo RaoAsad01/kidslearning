@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
 import { colors } from '../theme/colors';
@@ -8,12 +9,82 @@ import { animalSounds, animalSoundUrls } from '../services/animalSounds';
 
 const { width } = Dimensions.get('window');
 
+// Animated Animal Image Component
+function AnimatedAnimalImage({ emoji }) {
+  const bounceAnim = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Create continuous bounce animation
+    const bounceAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounceAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounceAnim, {
+          toValue: 0,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    // Create subtle rotation animation
+    const rotateAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(rotateAnim, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    bounceAnimation.start();
+    rotateAnimation.start();
+
+    return () => {
+      bounceAnimation.stop();
+      rotateAnimation.stop();
+    };
+  }, []);
+
+  const translateY = bounceAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -15], // Bounce up and down
+  });
+
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['-5deg', '5deg'], // Slight rotation
+  });
+
+  return (
+    <Animated.View
+      style={{
+        transform: [{ translateY }, { rotate }],
+      }}
+    >
+      <Text style={styles.animalImage}>{emoji}</Text>
+    </Animated.View>
+  );
+}
+
 export default function LearningDetailScreen({ route, navigation }) {
   const { categoryId } = route.params;
   const [category, setCategory] = useState(null);
   const [content, setContent] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const scrollViewRef = useRef(null);
+  const currentSoundRef = useRef(null); // Track current audio sound
+  const timeoutRefs = useRef([]); // Track all timeouts
 
   useEffect(() => {
     const categories = learningService.getLearningCategories();
@@ -35,6 +106,28 @@ export default function LearningDetailScreen({ route, navigation }) {
     );
   }
 
+  // Stop all previous speech and audio
+  const stopAllSounds = () => {
+    try {
+      // Stop any ongoing speech
+      Speech.stop();
+      
+      // Stop and unload current audio
+      if (currentSoundRef.current) {
+        currentSoundRef.current.unloadAsync().catch(() => {});
+        currentSoundRef.current = null;
+      }
+      
+      // Clear all pending timeouts
+      timeoutRefs.current.forEach(timeout => {
+        if (timeout) clearTimeout(timeout);
+      });
+      timeoutRefs.current = [];
+    } catch (error) {
+      console.error('Error stopping sounds:', error);
+    }
+  };
+
   const speakText = (text, options = {}) => {
     try {
       Speech.speak(text, {
@@ -50,6 +143,16 @@ export default function LearningDetailScreen({ route, navigation }) {
 
   const playAnimalSound = async (item) => {
     try {
+      // Stop any previous audio first
+      if (currentSoundRef.current) {
+        try {
+          await currentSoundRef.current.unloadAsync();
+        } catch (e) {
+          // Ignore errors when stopping
+        }
+        currentSoundRef.current = null;
+      }
+
       // Set audio mode for playback
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
@@ -68,10 +171,16 @@ export default function LearningDetailScreen({ route, navigation }) {
             { shouldPlay: true, volume: 1.0 }
           );
 
+          // Store reference to current sound
+          currentSoundRef.current = sound;
+
           // Clean up when sound finishes
           sound.setOnPlaybackStatusUpdate((status) => {
             if (status.didJustFinish) {
               sound.unloadAsync();
+              if (currentSoundRef.current === sound) {
+                currentSoundRef.current = null;
+              }
             }
           });
           console.log('✅ Sound playing successfully');
@@ -94,10 +203,16 @@ export default function LearningDetailScreen({ route, navigation }) {
             { shouldPlay: true, volume: 1.0 }
           );
 
+          // Store reference to current sound
+          currentSoundRef.current = sound;
+
           // Clean up when sound finishes
           sound.setOnPlaybackStatusUpdate((status) => {
             if (status.didJustFinish) {
               sound.unloadAsync();
+              if (currentSoundRef.current === sound) {
+                currentSoundRef.current = null;
+              }
             }
           });
           return; // Successfully played URL sound
@@ -148,6 +263,9 @@ export default function LearningDetailScreen({ route, navigation }) {
   };
 
   const handleItemPress = (item) => {
+    // Stop all previous sounds and clear timeouts FIRST
+    stopAllSounds();
+    
     setSelectedItem(item);
     
     // Scroll to top to show the selected item
@@ -159,9 +277,10 @@ export default function LearningDetailScreen({ route, navigation }) {
     if (categoryId === 'abc') {
       // Speak letter first, then word
       speakText(item.letter);
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         speakText(item.word);
       }, 500);
+      timeoutRefs.current.push(timeout);
     } else if (categoryId === '123') {
       // Speak number with count (e.g., "2 apples")
       const count = item.count || parseInt(item.number);
@@ -171,9 +290,10 @@ export default function LearningDetailScreen({ route, navigation }) {
     } else if (categoryId === 'urdu') {
       // Speak name first (Alif, Bay), then word
       speakText(item.name);
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         speakText(item.word, { language: 'ur' });
       }, 500);
+      timeoutRefs.current.push(timeout);
     } else if (categoryId === 'shapes') {
       // Speak shape name
       speakText(item.name);
@@ -183,18 +303,20 @@ export default function LearningDetailScreen({ route, navigation }) {
     } else if (categoryId === 'animals') {
       // Speak animal name, then play animal sound
       speakText(item.name);
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         playAnimalSound(item);
       }, 600);
+      timeoutRefs.current.push(timeout);
     } else if (categoryId === 'fruits') {
       // Speak fruit/vegetable name
       speakText(item.name);
     } else if (categoryId === 'phonics') {
       // Speak sound first, then word
       speakText(item.sound);
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         speakText(item.word);
       }, 500);
+      timeoutRefs.current.push(timeout);
     }
   };
 
@@ -204,10 +326,12 @@ export default function LearningDetailScreen({ route, navigation }) {
         <TouchableOpacity 
           style={styles.abcCard}
           onPress={() => {
+            stopAllSounds();
             speakText(item.letter);
-            setTimeout(() => {
+            const timeout = setTimeout(() => {
               speakText(item.word);
             }, 500);
+            timeoutRefs.current.push(timeout);
           }}
           activeOpacity={0.8}
         >
@@ -236,6 +360,7 @@ export default function LearningDetailScreen({ route, navigation }) {
         <TouchableOpacity 
           style={styles.numberCard}
           onPress={() => {
+            stopAllSounds();
             const itemName = count === 1 ? 'apple' : 'apples';
             speakText(`${item.number} ${itemName}`);
           }}
@@ -253,10 +378,12 @@ export default function LearningDetailScreen({ route, navigation }) {
         <TouchableOpacity 
           style={styles.urduCard}
           onPress={() => {
+            stopAllSounds();
             speakText(item.name);
-            setTimeout(() => {
+            const timeout = setTimeout(() => {
               speakText(item.word, { language: 'ur' });
             }, 500);
+            timeoutRefs.current.push(timeout);
           }}
           activeOpacity={0.8}
         >
@@ -272,7 +399,10 @@ export default function LearningDetailScreen({ route, navigation }) {
       return (
         <TouchableOpacity 
           style={styles.shapeCard}
-          onPress={() => speakText(item.name)}
+          onPress={() => {
+            stopAllSounds();
+            speakText(item.name);
+          }}
           activeOpacity={0.8}
         >
           <View style={styles.cardContent}>
@@ -285,7 +415,10 @@ export default function LearningDetailScreen({ route, navigation }) {
       return (
         <TouchableOpacity 
           style={styles.colorCard}
-          onPress={() => speakText(item.name)}
+          onPress={() => {
+            stopAllSounds();
+            speakText(item.name);
+          }}
           activeOpacity={0.8}
         >
           <View style={styles.cardContent}>
@@ -304,15 +437,17 @@ export default function LearningDetailScreen({ route, navigation }) {
         <TouchableOpacity 
           style={styles.animalCard}
           onPress={() => {
+            stopAllSounds();
             speakText(item.name);
-            setTimeout(() => {
+            const timeout = setTimeout(() => {
               playAnimalSound(item);
             }, 600);
+            timeoutRefs.current.push(timeout);
           }}
           activeOpacity={0.8}
         >
           <View style={styles.cardContent}>
-            <Text style={styles.animalImage}>{item.image}</Text>
+            <AnimatedAnimalImage emoji={item.image} />
             <Text style={styles.animalName}>{item.name}</Text>
             <Text style={styles.animalSound}>{item.sound}</Text>
           </View>
@@ -322,7 +457,10 @@ export default function LearningDetailScreen({ route, navigation }) {
       return (
         <TouchableOpacity 
           style={styles.fruitCard}
-          onPress={() => speakText(item.name)}
+          onPress={() => {
+            stopAllSounds();
+            speakText(item.name);
+          }}
           activeOpacity={0.8}
         >
           <View style={styles.cardContent}>
@@ -336,10 +474,12 @@ export default function LearningDetailScreen({ route, navigation }) {
         <TouchableOpacity 
           style={styles.phonicsCard}
           onPress={() => {
+            stopAllSounds();
             speakText(item.sound);
-            setTimeout(() => {
+            const timeout = setTimeout(() => {
               speakText(item.word);
             }, 500);
+            timeoutRefs.current.push(timeout);
           }}
           activeOpacity={0.8}
         >
@@ -358,7 +498,8 @@ export default function LearningDetailScreen({ route, navigation }) {
     <View style={styles.container}>
       <View style={[styles.header, { backgroundColor: category.color }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
+          <Ionicons name="arrow-back" size={24} color={colors.white} />
+          <Text style={styles.backButtonText}>Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{category.icon} {category.name}</Text>
         <View style={styles.placeholder} />
@@ -430,12 +571,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   backButton: {
-    padding: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   backButtonText: {
     color: colors.white,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
+    marginLeft: 8,
   },
   headerTitle: {
     fontSize: 22,
