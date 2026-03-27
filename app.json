@@ -26,7 +26,9 @@
       "package": "com.kidslearning.app",
       "permissions": [
         "WRITE_EXTERNAL_STORAGE",
-        "READ_EXTERNAL_STORAGE"
+        "READ_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -34,8 +36,11 @@
     },
     "plugins": [
       "expo-av"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "997a404c-12c3-4c69-95b9-cf565f546911"
+      }
+    }
   }
 }
-
-

@@ -86,3 +86,10 @@ export const animalSoundUrls = {
 - The app will use text-to-speech as fallback for missing sounds
 - After adding files, you may need to clear cache: `npx expo start --clear`
 
+
+
+
+
+
+
+
